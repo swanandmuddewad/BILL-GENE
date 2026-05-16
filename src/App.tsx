@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon } from 'lucide-react';
 import { getItems, saveItems, Item } from './utils/storage';
+import { toPng } from 'html-to-image';
 
 const INITIAL_ITEMS: Omit<Item, 'id'>[] = [
   { name: "GM", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
@@ -49,6 +50,9 @@ export default function App() {
   
   const [showBillOverlay, setShowBillOverlay] = useState(false);
   const [billScale, setBillScale] = useState(100);
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  const billRef = useRef<HTMLDivElement>(null);
 
   // Initialize Data
   useEffect(() => {
@@ -165,6 +169,30 @@ export default function App() {
 
   const handlePrint = () => {
     setShowBillOverlay(true);
+  };
+
+  const handleDownloadImage = async () => {
+    if (!billRef.current) return;
+    
+    setIsDownloading(true);
+    try {
+      // Ensure we capture at a good quality even if scaled on screen
+      const dataUrl = await toPng(billRef.current, { 
+        cacheBust: true,
+        quality: 1,
+        pixelRatio: 2 // Higher resolution
+      });
+      
+      const link = document.createElement('a');
+      link.download = `bill-${new Date().getTime()}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('oops, something went wrong!', err);
+      alert('Failed to generate image. Please try taking a screenshot instead.');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const resetBill = () => {
@@ -435,8 +463,8 @@ export default function App() {
         <div className="bill-overlay print-hidden">
           <div className="w-full max-w-md flex flex-col gap-4 mb-6">
             <div className="flex items-center justify-between bg-slate-800 p-4 rounded-xl text-white">
-              <div className="flex-1">
-                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Scale: {billScale}%</label>
+              <div className="flex-1 flex flex-col gap-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400 block">Scale: {billScale}%</label>
                 <input 
                   type="range" 
                   min="50" 
@@ -447,24 +475,34 @@ export default function App() {
                   className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
               </div>
-              <button 
-                onClick={() => setShowBillOverlay(false)}
-                className="ml-4 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold text-sm transition-colors"
-              >
-                CLOSE
-              </button>
+              <div className="flex gap-2 ml-4">
+                <button 
+                  onClick={handleDownloadImage}
+                  disabled={isDownloading}
+                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Download size={16} /> {isDownloading ? '...' : 'SAVE IMAGE'}
+                </button>
+                <button 
+                  onClick={() => setShowBillOverlay(false)}
+                  className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+                >
+                  EXIT
+                </button>
+              </div>
             </div>
-            <p className="text-white/50 text-[10px] text-center uppercase font-bold">Adjust scale then take screenshot</p>
+            <p className="text-white/50 text-[10px] text-center uppercase font-bold tracking-widest">Adjust scale for preview • Click SAVE IMAGE for photo</p>
           </div>
 
           <div 
-            className="bill-container p-6" 
+            className="bill-container" 
             style={{ transform: `scale(${billScale / 100})` }}
           >
-            <div className="text-center mb-6 border-b-2 border-slate-900 pb-4">
-              <h1 className="text-2xl font-black uppercase tracking-tight">CASH MEMO</h1>
-              <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">Retail Billing System</p>
-            </div>
+            <div ref={billRef} className="bg-white p-6">
+              <div className="text-center mb-6 border-b-2 border-slate-900 pb-4">
+                <h1 className="text-2xl font-black uppercase tracking-tight">CASH MEMO</h1>
+                <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">Retail Billing System</p>
+              </div>
             
             <div className="flex justify-between text-[10px] font-bold uppercase mb-4">
               <span>Date: {new Date().toLocaleDateString()}</span>
@@ -510,6 +548,7 @@ export default function App() {
               <p className="text-[8px] text-slate-400 mt-1 italic">Generated via BillGen Pro PWA</p>
             </footer>
           </div>
+        </div>
           
           <button 
             onClick={() => window.print()}
