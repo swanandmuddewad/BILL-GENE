@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { getItems, saveItems, Item } from './utils/storage';
 import { toPng } from 'html-to-image';
 
@@ -51,6 +51,7 @@ export default function App() {
   const [showBillOverlay, setShowBillOverlay] = useState(false);
   const [billScale, setBillScale] = useState(100);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   
   const billRef = useRef<HTMLDivElement>(null);
 
@@ -159,12 +160,31 @@ export default function App() {
 
   const grandTotal = billItems.reduce((sum, item) => sum + item.total, 0);
 
-  const removeItem = (id: string) => {
-    if (confirm("Delete this item?")) {
-      const newItems = items.filter(i => i.id !== id);
-      setItems(newItems);
-      saveItems(newItems);
+  const removeItem = (id: string, confirmed: boolean = false) => {
+    if (!confirmed) {
+      setConfirmDeleteId(id);
+      return;
     }
+    const newItems = items.filter(i => i.id !== id);
+    setItems(newItems);
+    saveItems(newItems);
+    setConfirmDeleteId(null);
+  };
+
+  const moveItem = (id: string, direction: 'up' | 'down') => {
+    const index = items.findIndex(item => item.id === id);
+    if (index === -1) return;
+    
+    const newItems = [...items];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+    
+    // Swap items
+    [newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]];
+    
+    setItems(newItems);
+    saveItems(newItems);
   };
 
   const handlePrint = () => {
@@ -303,46 +323,91 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="flex-shrink-0">
-                        <button 
-                          onClick={() => handleTypeToggle(item.id)}
-                          className={`w-10 h-10 flex items-center justify-center text-sm font-black rounded-xl border-2 transition-all cursor-pointer shadow-sm active:scale-90 ${
-                            currentType === 'box' 
-                              ? 'bg-blue-600 border-blue-700 text-white' 
-                              : 'bg-green-600 border-green-700 text-white'
-                          }`}
-                        >
-                          {currentType.substring(0,1).toUpperCase()}
-                        </button>
-                      </div>
-
-                      <div className="w-24 sm:w-32 flex-shrink-0">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          className="w-full border-2 border-slate-300 rounded-xl py-3 px-2 text-xl font-black text-center focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all outline-none bg-white placeholder-slate-200"
-                          value={currentQty}
-                          onChange={(e) => handleQtyChange(item.id, e.target.value)}
-                          placeholder="0"
-                        />
-                      </div>
-
-                      <div className="w-20 text-right flex-shrink-0">
-                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Amount</div>
-                        <div className="text-base font-black text-slate-800">
-                          ₹{((parseFloat(currentQty) || 0) * currentPrice).toFixed(0)}
+                      {isEditing ? (
+                        <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
+                          <div className="flex flex-col gap-1">
+                            <button 
+                              onClick={() => moveItem(item.id, 'up')}
+                              disabled={items.indexOf(item) === 0}
+                              className="p-2 bg-slate-100 text-slate-400 rounded-lg disabled:opacity-30 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+                            >
+                              <ChevronUp size={16} />
+                            </button>
+                            <button 
+                              onClick={() => moveItem(item.id, 'down')}
+                              disabled={items.indexOf(item) === items.length - 1}
+                              className="p-2 bg-slate-100 text-slate-400 rounded-lg disabled:opacity-30 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+                            >
+                              <ChevronDown size={16} />
+                            </button>
+                          </div>
+                          
+                          {confirmDeleteId === item.id ? (
+                            <div className="flex gap-1">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmDeleteId(null);
+                                }}
+                                className="bg-slate-100 text-slate-500 px-3 py-2 rounded-lg text-[10px] font-bold uppercase"
+                              >
+                                NO
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeItem(item.id, true);
+                                }}
+                                className="bg-red-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold uppercase shadow-sm"
+                              >
+                                YES
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeItem(item.id);
+                              }}
+                              className="bg-red-50 text-red-500 w-12 h-12 flex items-center justify-center rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-90"
+                            >
+                              <Trash2 size={24} />
+                            </button>
+                          )}
                         </div>
-                      </div>
+                      ) : (
+                        <>
+                          <div className="flex-shrink-0">
+                            <button 
+                              onClick={() => handleTypeToggle(item.id)}
+                              className={`w-10 h-10 flex items-center justify-center text-sm font-black rounded-xl border-2 transition-all cursor-pointer shadow-sm active:scale-90 ${
+                                currentType === 'box' 
+                                  ? 'bg-blue-600 border-blue-700 text-white' 
+                                  : 'bg-green-600 border-green-700 text-white'
+                              }`}
+                            >
+                              {currentType.substring(0,1).toUpperCase()}
+                            </button>
+                          </div>
 
-                      {isEditing && (
-                        <div className="flex-shrink-0 ml-1">
-                          <button 
-                            onClick={() => removeItem(item.id)}
-                            className="text-red-500 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={20} />
-                          </button>
-                        </div>
+                          <div className="w-24 sm:w-32 flex-shrink-0">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              className="w-full border-2 border-slate-300 rounded-xl py-3 px-2 text-xl font-black text-center focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all outline-none bg-white placeholder-slate-200"
+                              value={currentQty}
+                              onChange={(e) => handleQtyChange(item.id, e.target.value)}
+                              placeholder="0"
+                            />
+                          </div>
+
+                          <div className="w-20 text-right flex-shrink-0">
+                            <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Amount</div>
+                            <div className="text-base font-black text-slate-800">
+                              ₹{((parseFloat(currentQty) || 0) * currentPrice).toFixed(0)}
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
 
@@ -434,29 +499,31 @@ export default function App() {
       </main>
 
       {/* Footer Summary */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] print-hidden z-20">
-        <div className="max-w-4xl mx-auto flex justify-between items-center gap-4">
-          <div className="flex-1">
-            <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Total Payable</p>
-            <p className="text-2xl sm:text-3xl font-black text-slate-900 leading-none">₹{grandTotal.toFixed(0)}</p>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={resetBill}
-              className={`${isConfirmingClear ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'} px-4 py-4 rounded-xl font-bold transition-all cursor-pointer`}
-            >
-              {isConfirmingClear ? 'SURE?' : 'Clear'}
-            </button>
-            <button 
-              onClick={handlePrint}
-              disabled={grandTotal === 0}
-              className="bg-blue-600 text-white px-6 sm:px-10 py-4 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-blue-200 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale cursor-pointer"
-            >
-              <Printer size={22} /> <span className="hidden xs:inline">Print</span>
-            </button>
+      {!isEditing && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] print-hidden z-20">
+          <div className="max-w-4xl mx-auto flex justify-between items-center gap-4">
+            <div className="flex-1">
+              <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Total Payable</p>
+              <p className="text-2xl sm:text-3xl font-black text-slate-900 leading-none">₹{grandTotal.toFixed(0)}</p>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={resetBill}
+                className={`${isConfirmingClear ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'} px-4 py-4 rounded-xl font-bold transition-all cursor-pointer`}
+              >
+                {isConfirmingClear ? 'SURE?' : 'Clear'}
+              </button>
+              <button 
+                onClick={handlePrint}
+                disabled={grandTotal === 0}
+                className="bg-blue-600 text-white px-6 sm:px-10 py-4 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-blue-200 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale cursor-pointer"
+              >
+                <Printer size={22} /> <span className="hidden xs:inline">Print</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Digital Bill Preview Overlay for Screenshots */}
       {showBillOverlay && (
