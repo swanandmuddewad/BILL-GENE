@@ -7,7 +7,172 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { getItems, saveItems, Item } from './utils/storage';
 import { toPng } from 'html-to-image';
-import { Reorder } from 'motion/react';
+import { Reorder, useDragControls } from 'motion/react';
+
+function SortableItemRow({ 
+  item, 
+  quantities, 
+  isEditing, 
+  items, 
+  confirmDeleteId, 
+  setConfirmDeleteId, 
+  removeItem, 
+  moveItem, 
+  handleTypeToggle, 
+  handleQtyChange, 
+  updatePrice 
+}: any) {
+  const controls = useDragControls();
+  const currentQty = quantities[item.id]?.qty || '';
+  const currentType = quantities[item.id]?.type || item.defaultType;
+  const currentPrice = currentType === 'box' ? item.boxPrice : item.loosePrice;
+  const hasValue = (parseFloat(currentQty) || 0) > 0;
+  
+  return (
+    <Reorder.Item 
+      value={item}
+      dragListener={false}
+      dragControls={controls}
+      className={`p-3 space-y-2 ${hasValue ? "bg-blue-50/50" : "bg-white"} ${isEditing ? "" : ""}`}
+    >
+      <div className="flex items-center gap-3">
+        {isEditing && (
+          <div 
+            className="flex-shrink-0 text-slate-400 p-2 ml-[-0.5rem] cursor-grab active:cursor-grabbing touch-none"
+            onPointerDown={(e) => controls.start(e)}
+          >
+            <GripVertical size={20} />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="font-black text-slate-900 text-sm sm:text-base leading-tight uppercase">
+            {item.name}
+          </div>
+          <div className="flex gap-3 mt-0.5">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${currentType === 'box' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
+              BOX: ₹{item.boxPrice.toFixed(0)}
+            </span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${currentType === 'loose' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+              LOOSE: ₹{item.loosePrice.toFixed(0)}
+            </span>
+          </div>
+        </div>
+
+        {isEditing ? (
+          <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => moveItem(item.id, 'up')}
+                disabled={items.indexOf(item) === 0}
+                className="p-2 bg-slate-100 text-slate-400 rounded-lg disabled:opacity-30 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+              >
+                <ChevronUp size={16} />
+              </button>
+              <button 
+                onClick={() => moveItem(item.id, 'down')}
+                disabled={items.indexOf(item) === items.length - 1}
+                className="p-2 bg-slate-100 text-slate-400 rounded-lg disabled:opacity-30 hover:bg-slate-200 hover:text-slate-600 transition-colors"
+              >
+                <ChevronDown size={16} />
+              </button>
+            </div>
+            
+            {confirmDeleteId === item.id ? (
+              <div className="flex gap-1">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDeleteId(null);
+                  }}
+                  className="bg-slate-100 text-slate-500 px-3 py-2 rounded-lg text-[10px] font-bold uppercase"
+                >
+                  NO
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeItem(item.id, true);
+                  }}
+                  className="bg-red-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold uppercase shadow-sm"
+                >
+                  YES
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeItem(item.id);
+                }}
+                className="bg-red-50 text-red-500 w-12 h-12 flex items-center justify-center rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-90"
+              >
+                <Trash2 size={24} />
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex-shrink-0">
+              <button 
+                onClick={() => handleTypeToggle(item.id)}
+                className={`w-10 h-10 flex items-center justify-center text-sm font-black rounded-xl border-2 transition-all cursor-pointer shadow-sm active:scale-90 ${
+                  currentType === 'box' 
+                    ? 'bg-blue-600 border-blue-700 text-white' 
+                    : 'bg-green-600 border-green-700 text-white'
+                }`}
+              >
+                {currentType.substring(0,1).toUpperCase()}
+              </button>
+            </div>
+
+            <div className="w-24 sm:w-32 flex-shrink-0">
+              <input
+                type="number"
+                inputMode="decimal"
+                className="w-full border-2 border-slate-300 rounded-xl py-3 px-2 text-xl font-black text-center focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all outline-none bg-white placeholder-slate-200"
+                value={currentQty}
+                onChange={(e) => handleQtyChange(item.id, e.target.value)}
+                placeholder="0"
+              />
+            </div>
+
+            <div className="w-20 text-right flex-shrink-0">
+              <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Amount</div>
+              <div className="text-base font-black text-slate-800">
+                ₹{((parseFloat(currentQty) || 0) * currentPrice).toFixed(0)}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {isEditing && (
+        <div className="flex gap-2 pt-2 border-t border-slate-100">
+          <div className="flex-1">
+            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Set Box Price</label>
+            <input
+              type="number"
+              className="w-full border rounded-lg p-2 text-sm bg-slate-50 focus:bg-white transition-all"
+              value={item.boxPrice || ''}
+              onChange={(e) => updatePrice(item.id, 'boxPrice', e.target.value)}
+              placeholder="Box ₹"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Set Loose Price</label>
+            <input
+              type="number"
+              className="w-full border rounded-lg p-2 text-sm bg-slate-50 focus:bg-white transition-all"
+              value={item.loosePrice || ''}
+              onChange={(e) => updatePrice(item.id, 'loosePrice', e.target.value)}
+              placeholder="Loose ₹"
+            />
+          </div>
+        </div>
+      )}
+    </Reorder.Item>
+  );
+}
 
 const INITIAL_ITEMS: Omit<Item, 'id'>[] = [
   { name: "GM", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
@@ -197,20 +362,51 @@ export default function App() {
     
     setIsDownloading(true);
     try {
-      // Ensure we capture at a good quality even if scaled on screen
+      // Create image with optimized settings to prevent mobile Out-of-Memory crashes
       const dataUrl = await toPng(billRef.current, { 
-        cacheBust: true,
-        quality: 1,
-        pixelRatio: 2 // Higher resolution
+        cacheBust: false,
+        quality: 0.9,
+        pixelRatio: 1.5 // Reduced from 2 to prevent mobile rendering crashes
       });
       
+      const filename = `bill-${new Date().getTime()}.png`;
+      const blob = await (await fetch(dataUrl)).blob();
+
+      // For devices that support the Web Share API (most modern mobile phones)
+      if (navigator.share && navigator.canShare) {
+        const file = new File([blob], filename, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Bill details',
+            });
+            return; // Success with native share
+          } catch (shareErr: any) {
+            // User cancelled share, or it failed. Fallback to normal download
+            if (shareErr.name !== 'AbortError') {
+              console.warn('Share failed, falling back to download:', shareErr);
+            } else {
+              return; // User intentionally cancelled share
+            }
+          }
+        }
+      }
+
+      // Fallback for desktop or non-sharing browsers
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.download = `bill-${new Date().getTime()}.png`;
-      link.href = dataUrl;
+      link.download = filename;
+      link.href = url;
+      document.body.appendChild(link);
       link.click();
-    } catch (err) {
+      document.body.removeChild(link);
+      
+      // Cleanup
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (err: any) {
       console.error('oops, something went wrong!', err);
-      alert('Failed to generate image. Please try taking a screenshot instead.');
+      alert('Failed to generate image: ' + (err.message || 'Unknown error') + '. Please try taking a screenshot instead.');
     } finally {
       setIsDownloading(false);
     }
@@ -309,154 +505,22 @@ export default function App() {
               }}
               className="divide-y divide-slate-100"
             >
-              {items.map((item) => {
-                const currentQty = quantities[item.id]?.qty || '';
-                const currentType = quantities[item.id]?.type || item.defaultType;
-                const currentPrice = currentType === 'box' ? item.boxPrice : item.loosePrice;
-                const hasValue = (parseFloat(currentQty) || 0) > 0;
-                
-                return (
-                  <Reorder.Item 
-                    key={item.id} 
-                    value={item}
-                    dragListener={isEditing}
-                    className={`p-3 space-y-2 ${hasValue ? "bg-blue-50/50" : "bg-white"} ${isEditing ? "cursor-grab active:cursor-grabbing" : ""}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {isEditing && (
-                        <div className="flex-shrink-0 text-slate-300">
-                          <GripVertical size={20} />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-black text-slate-900 text-sm sm:text-base leading-tight uppercase">
-                          {item.name}
-                        </div>
-                        <div className="flex gap-3 mt-0.5">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${currentType === 'box' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
-                            BOX: ₹{item.boxPrice.toFixed(0)}
-                          </span>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${currentType === 'loose' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
-                            LOOSE: ₹{item.loosePrice.toFixed(0)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {isEditing ? (
-                        <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
-                          <div className="flex flex-col gap-1">
-                            <button 
-                              onClick={() => moveItem(item.id, 'up')}
-                              disabled={items.indexOf(item) === 0}
-                              className="p-2 bg-slate-100 text-slate-400 rounded-lg disabled:opacity-30 hover:bg-slate-200 hover:text-slate-600 transition-colors"
-                            >
-                              <ChevronUp size={16} />
-                            </button>
-                            <button 
-                              onClick={() => moveItem(item.id, 'down')}
-                              disabled={items.indexOf(item) === items.length - 1}
-                              className="p-2 bg-slate-100 text-slate-400 rounded-lg disabled:opacity-30 hover:bg-slate-200 hover:text-slate-600 transition-colors"
-                            >
-                              <ChevronDown size={16} />
-                            </button>
-                          </div>
-                          
-                          {confirmDeleteId === item.id ? (
-                            <div className="flex gap-1">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setConfirmDeleteId(null);
-                                }}
-                                className="bg-slate-100 text-slate-500 px-3 py-2 rounded-lg text-[10px] font-bold uppercase"
-                              >
-                                NO
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeItem(item.id, true);
-                                }}
-                                className="bg-red-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold uppercase shadow-sm"
-                              >
-                                YES
-                              </button>
-                            </div>
-                          ) : (
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeItem(item.id);
-                              }}
-                              className="bg-red-50 text-red-500 w-12 h-12 flex items-center justify-center rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-90"
-                            >
-                              <Trash2 size={24} />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex-shrink-0">
-                            <button 
-                              onClick={() => handleTypeToggle(item.id)}
-                              className={`w-10 h-10 flex items-center justify-center text-sm font-black rounded-xl border-2 transition-all cursor-pointer shadow-sm active:scale-90 ${
-                                currentType === 'box' 
-                                  ? 'bg-blue-600 border-blue-700 text-white' 
-                                  : 'bg-green-600 border-green-700 text-white'
-                              }`}
-                            >
-                              {currentType.substring(0,1).toUpperCase()}
-                            </button>
-                          </div>
-
-                          <div className="w-24 sm:w-32 flex-shrink-0">
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              className="w-full border-2 border-slate-300 rounded-xl py-3 px-2 text-xl font-black text-center focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all outline-none bg-white placeholder-slate-200"
-                              value={currentQty}
-                              onChange={(e) => handleQtyChange(item.id, e.target.value)}
-                              placeholder="0"
-                            />
-                          </div>
-
-                          <div className="w-20 text-right flex-shrink-0">
-                            <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Amount</div>
-                            <div className="text-base font-black text-slate-800">
-                              ₹{((parseFloat(currentQty) || 0) * currentPrice).toFixed(0)}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {isEditing && (
-                      <div className="flex gap-2 pt-2 border-t border-slate-100">
-                        <div className="flex-1">
-                          <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Set Box Price</label>
-                          <input
-                            type="number"
-                            className="w-full border rounded-lg p-2 text-sm bg-slate-50 focus:bg-white transition-all"
-                            value={item.boxPrice || ''}
-                            onChange={(e) => updatePrice(item.id, 'boxPrice', e.target.value)}
-                            placeholder="Box ₹"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Set Loose Price</label>
-                          <input
-                            type="number"
-                            className="w-full border rounded-lg p-2 text-sm bg-slate-50 focus:bg-white transition-all"
-                            value={item.loosePrice || ''}
-                            onChange={(e) => updatePrice(item.id, 'loosePrice', e.target.value)}
-                            placeholder="Loose ₹"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </Reorder.Item>
-                );
-              })}
+              {items.map((item) => (
+                <SortableItemRow
+                  key={item.id}
+                  item={item}
+                  quantities={quantities}
+                  isEditing={isEditing}
+                  items={items}
+                  confirmDeleteId={confirmDeleteId}
+                  setConfirmDeleteId={setConfirmDeleteId}
+                  removeItem={removeItem}
+                  moveItem={moveItem}
+                  handleTypeToggle={handleTypeToggle}
+                  handleQtyChange={handleQtyChange}
+                  updatePrice={updatePrice}
+                />
+              ))}
             </Reorder.Group>
           </div>
           
