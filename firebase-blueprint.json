@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "Item": {
+      "title": "Item",
+      "description": "Inventory item for billing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "boxPrice": { "type": "number" },
+        "loosePrice": { "type": "number" },
+        "defaultType": { "type": "string", "enum": ["box", "loose"] },
+        "order": { "type": "number" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "boxPrice", "loosePrice", "defaultType", "userId"]
+    }
+  },
+  "firestore": {
+    "/items/{itemId}": {
+      "schema": "Item",
+      "description": "User specific inventory items"
+    }
+  }
+}

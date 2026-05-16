@@ -4,12 +4,14 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
-import { getItems, saveItems, Item } from './utils/storage';
+import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown, GripVertical, LogIn, LogOut, User as UserIcon, RefreshCw } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { Reorder } from 'motion/react';
+import { useAuth } from './components/AuthProvider';
+import { signInWithGoogle, logout } from './lib/firebase';
+import { addItem as addItemToDb, updateItem as updateItemInDb, removeItem as removeItemFromDb, subscribeToItems, Item, updateItemsOrder } from './lib/itemService';
 
-const INITIAL_ITEMS: Omit<Item, 'id'>[] = [
+const INITIAL_ITEMS: Omit<Item, 'id' | 'userId'>[] = [
   { name: "GM", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
   { name: "TANGO", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
   { name: "APPLE", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
@@ -39,6 +41,7 @@ const INITIAL_ITEMS: Omit<Item, 'id'>[] = [
 ];
 
 export default function App() {
+  const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [quantities, setQuantities] = useState<{ [key: string]: { qty: string, type: 'box' | 'loose' } }>({});
   const [isEditing, setIsEditing] = useState(false);
@@ -56,46 +59,44 @@ export default function App() {
   
   const billRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Data
+  // Initialize Firebase Stream
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const stored = await getItems();
-        if (stored && stored.length > 0) {
-          const migrated = stored.map(item => ({
-            ...item,
-            boxPrice: (item as any).boxPrice ?? (item as any).price ?? 0,
-            loosePrice: (item as any).loosePrice ?? 0,
-            defaultType: (item as any).defaultType ?? 'box'
-          }));
-          setItems(migrated);
-          
-          const initialQtys: { [key: string]: { qty: string, type: 'box' | 'loose' } } = {};
-          migrated.forEach(item => {
-            initialQtys[item.id] = { qty: '', type: item.defaultType };
-          });
-          setQuantities(initialQtys);
-        } else {
-          const defaultItems = INITIAL_ITEMS.map(item => ({
-            id: Math.random().toString(36).substring(2, 11),
-            ...item
-          })) as Item[];
-          setItems(defaultItems);
-          
-          const initialQtys: { [key: string]: { qty: string, type: 'box' | 'loose' } } = {};
-          defaultItems.forEach(item => {
-            initialQtys[item.id] = { qty: '', type: item.defaultType };
-          });
-          setQuantities(initialQtys);
-          
-          await saveItems(defaultItems);
-        }
-      } catch (error) {
-        console.error("Failed to load items from DB:", error);
-      }
-    };
-    loadData();
+    if (!user) {
+      setItems([]);
+      return;
+    }
 
+    const unsubscribe = subscribeToItems(user.uid, (fetchedItems) => {
+      // If no items in DB, initialize with defaults
+      if (fetchedItems.length === 0) {
+        INITIAL_ITEMS.forEach(async (baseItem, index) => {
+          await addItemToDb({
+            id: Math.random().toString(36).substring(2, 11),
+            ...baseItem,
+            order: index
+          });
+        });
+      } else {
+        setItems(fetchedItems);
+        
+        // Update quantities state if new items arrived
+        setQuantities(prev => {
+          const next = { ...prev };
+          fetchedItems.forEach(item => {
+            if (!next[item.id]) {
+              next[item.id] = { qty: '', type: item.defaultType };
+            }
+          });
+          return next;
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Install PWA Prompt
+  useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -121,11 +122,8 @@ export default function App() {
   };
 
   const updatePrice = (id: string, field: 'boxPrice' | 'loosePrice', price: string) => {
-    const newItems = items.map(item => 
-      item.id === id ? { ...item, [field]: parseFloat(price) || 0 } : item
-    );
-    setItems(newItems);
-    saveItems(newItems);
+    const val = parseFloat(price) || 0;
+    updateItemInDb(id, { [field]: val });
   };
 
   const handleQtyChange = (id: string, val: string) => {
@@ -166,9 +164,7 @@ export default function App() {
       setConfirmDeleteId(id);
       return;
     }
-    const newItems = items.filter(i => i.id !== id);
-    setItems(newItems);
-    saveItems(newItems);
+    removeItemFromDb(id);
     setConfirmDeleteId(null);
   };
 
@@ -185,7 +181,7 @@ export default function App() {
     [newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]];
     
     setItems(newItems);
-    saveItems(newItems);
+    updateItemsOrder(newItems);
   };
 
   const handlePrint = () => {
@@ -231,9 +227,9 @@ export default function App() {
   };
 
   const addItem = () => {
-    if (!newItemName.trim()) return;
+    if (!newItemName.trim() || !user) return;
     
-    const newItem: Item = {
+    const newItem = {
       id: Math.random().toString(36).substring(2, 11),
       name: newItemName.trim().toUpperCase(),
       boxPrice: 0,
@@ -241,11 +237,7 @@ export default function App() {
       defaultType: newItemType
     };
     
-    const newItems = [...items, newItem];
-    setItems(newItems);
-    saveItems(newItems);
-    setQuantities(prev => ({ ...prev, [newItem.id]: { qty: '', type: newItemType } }));
-    
+    addItemToDb(newItem);
     setNewItemName('');
     setIsAddingItem(false);
   };
@@ -256,25 +248,71 @@ export default function App() {
       <header className="bg-slate-900 text-white p-4 sticky top-0 z-30 shadow-lg flex justify-between items-center print-hidden">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <ShoppingCart size={24} className="text-blue-400" />
-          <span className="hidden sm:inline">Bill Generator</span>
-          <span className="sm:hidden text-lg">Bill Gen</span>
+          <span className="hidden sm:inline">BillGen Pro</span>
+          <span className="sm:hidden text-lg">BillGen</span>
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {user && (
+            <div className="hidden lg:flex items-center gap-2 mr-4 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+              <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold">
+                {user.email?.substring(0,1).toUpperCase()}
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cloud Sync Active</span>
+            </div>
+          )}
           {deferredPrompt && (
             <button onClick={handleInstall} className="bg-blue-600 px-3 py-1 rounded text-sm flex items-center gap-1 cursor-pointer hover:bg-blue-700 transition-colors">
-              <Smartphone size={16} /> <span className="hidden xs:inline">Install</span>
+              <Smartphone size={16} /> <span className="hidden xs:inline">App</span>
             </button>
           )}
-          <button 
-            onClick={() => setIsEditing(!isEditing)}
-            className={`${isEditing ? 'bg-green-600' : 'bg-slate-700'} px-3 py-1 rounded text-sm cursor-pointer transition-colors flex items-center gap-1`}
-          >
-            {isEditing ? 'Done' : 'Prices'}
-          </button>
+          {user ? (
+            <>
+              <button 
+                onClick={() => setIsEditing(!isEditing)}
+                className={`${isEditing ? 'bg-green-600' : 'bg-slate-700'} px-3 py-1 rounded text-sm cursor-pointer transition-colors flex items-center gap-1`}
+              >
+                {isEditing ? 'Done' : 'Prices'}
+              </button>
+              <button 
+                onClick={logout}
+                className="bg-slate-800 hover:bg-red-900/40 p-2 rounded text-slate-400 hover:text-red-400 transition-all cursor-pointer"
+                title="Logout"
+              >
+                <LogOut size={18} />
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={signInWithGoogle}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg flex items-center gap-2 font-bold text-sm transition-all"
+            >
+              <LogIn size={18} /> LOGIN
+            </button>
+          )}
         </div>
       </header>
 
-      <main className="p-2 sm:p-4 max-w-4xl mx-auto print-hidden">
+      {!user ? (
+        <main className="p-4 max-w-xl mx-auto mt-20 text-center">
+          <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 transform -rotate-3 ring-8 ring-blue-50/50">
+              <ShoppingCart size={40} />
+            </div>
+            <h2 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">Cloud Secure Billing</h2>
+            <p className="text-slate-500 mb-8 font-medium">Log in to sync your items across devices. Your data remains safe even if you clear your browser.</p>
+            <button 
+              onClick={signInWithGoogle}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg shadow-blue-200 transition-all active:scale-95"
+            >
+              <LogIn size={24} /> SIGN IN WITH GOOGLE
+            </button>
+            <p className="mt-6 text-[10px] text-slate-400 uppercase font-black tracking-widest flex items-center justify-center gap-2">
+              <RefreshCw size={12} /> Auto-Sync Enabled
+            </p>
+          </div>
+        </main>
+      ) : (
+        <main className="p-2 sm:p-4 max-w-4xl mx-auto print-hidden">
         {!isEditing && (
           <div className="mb-4 flex justify-center">
             <button 
@@ -305,7 +343,7 @@ export default function App() {
               values={items} 
               onReorder={(newOrder) => {
                 setItems(newOrder);
-                saveItems(newOrder);
+                updateItemsOrder(newOrder);
               }}
               className="divide-y divide-slate-100"
             >
@@ -516,6 +554,7 @@ export default function App() {
           )}
         </div>
       </main>
+    )}
 
       {/* Footer Summary */}
       {!isEditing && (
