@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @layer base {
-  /* Prevent scrolling content under status bar on iOS */
   body {
     @apply antialiased text-slate-900 bg-slate-50 overflow-x-hidden;
     padding-top: env(safe-area-inset-top);
@@ -19,43 +18,63 @@
   }
 }
 
-/* Hide print view from screen, only for printing */
+/* Hide print view on screen by default */
 #print-area {
   display: none;
 }
 
+/* Digital Bill Preview Overlay */
+.bill-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0f172a;
+  z-index: 50;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bill-container {
+  background: white;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  transform-origin: top center;
+  transition: transform 0.2s ease;
+}
+
 @media print {
   @page {
-    margin: 0;
+    margin: 10mm;
     size: auto;
   }
 
-  /* Force background colors */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Completely hide everything marked as print-hidden */
-  .print-hidden {
+  /* Hide everything except print area */
+  body > #root > div > *:not(#print-area) {
     display: none !important;
   }
 
-  /* Ensure the print area is visible and takes up the whole page */
+  /* Show only print area */
   #print-area {
     display: block !important;
     visibility: visible !important;
     position: static !important;
     width: 100% !important;
-    margin: 0 !important;
-    padding: 10px !important;
     background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  
+
   body, html {
     background: white !important;
-    height: auto !important;
-    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 }
-

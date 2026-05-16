@@ -46,6 +46,9 @@ export default function App() {
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [newItemType, setNewItemType] = useState<'box' | 'loose'>('box');
+  
+  const [showBillOverlay, setShowBillOverlay] = useState(false);
+  const [billScale, setBillScale] = useState(100);
 
   // Initialize Data
   useEffect(() => {
@@ -53,7 +56,6 @@ export default function App() {
       try {
         const stored = await getItems();
         if (stored && stored.length > 0) {
-          // Migration check for older schema
           const migrated = stored.map(item => ({
             ...item,
             boxPrice: (item as any).boxPrice ?? (item as any).price ?? 0,
@@ -62,7 +64,6 @@ export default function App() {
           }));
           setItems(migrated);
           
-          // Set initial types based on defaults
           const initialQtys: { [key: string]: { qty: string, type: 'box' | 'loose' } } = {};
           migrated.forEach(item => {
             initialQtys[item.id] = { qty: '', type: item.defaultType };
@@ -154,13 +155,16 @@ export default function App() {
 
   const grandTotal = billItems.reduce((sum, item) => sum + item.total, 0);
 
+  const removeItem = (id: string) => {
+    if (confirm("Delete this item?")) {
+      const newItems = items.filter(i => i.id !== id);
+      setItems(newItems);
+      saveItems(newItems);
+    }
+  };
+
   const handlePrint = () => {
-    // Focus window and scroll to top for reliable printing
-    window.focus();
-    window.scrollTo(0, 0);
-    setTimeout(() => {
-      window.print();
-    }, 300);
+    setShowBillOverlay(true);
   };
 
   const resetBill = () => {
@@ -193,17 +197,8 @@ export default function App() {
     saveItems(newItems);
     setQuantities(prev => ({ ...prev, [newItem.id]: { qty: '', type: newItemType } }));
     
-    // Reset state
     setNewItemName('');
     setIsAddingItem(false);
-  };
-
-  const removeItem = (id: string) => {
-    if (confirm("Delete this item?")) {
-      const newItems = items.filter(i => i.id !== id);
-      setItems(newItems);
-      saveItems(newItems);
-    }
   };
 
   return (
@@ -231,7 +226,6 @@ export default function App() {
       </header>
 
       <main className="p-2 sm:p-4 max-w-4xl mx-auto print-hidden">
-        {/* Quick Add Button on Main Screen */}
         {!isEditing && (
           <div className="mb-4 flex justify-center">
             <button 
@@ -247,9 +241,7 @@ export default function App() {
         )}
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          {/* Responsive Table/List */}
           <div className="w-full">
-            {/* Header - Hidden on very small screens */}
             <div className="hidden sm:grid grid-cols-[1fr_120px_80px_100px_100px] bg-slate-100 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
               <div className="p-3">Item</div>
               <div className="p-3">Price</div>
@@ -269,7 +261,6 @@ export default function App() {
                 return (
                   <div key={item.id} className={`p-3 space-y-2 ${hasValue ? "bg-blue-50/50" : ""}`}>
                     <div className="flex items-center gap-3">
-                      {/* Column 1: Name & Prices Below */}
                       <div className="flex-1 min-w-0">
                         <div className="font-black text-slate-900 text-sm sm:text-base leading-tight uppercase">
                           {item.name}
@@ -284,7 +275,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Column 2: B or L toggle (Compact) */}
                       <div className="flex-shrink-0">
                         <button 
                           onClick={() => handleTypeToggle(item.id)}
@@ -298,7 +288,6 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Column 3: BIG QUANTITY ENTERING BAR */}
                       <div className="w-24 sm:w-32 flex-shrink-0">
                         <input
                           type="number"
@@ -310,7 +299,6 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Column 4: LINE AMOUNT */}
                       <div className="w-20 text-right flex-shrink-0">
                         <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Amount</div>
                         <div className="text-base font-black text-slate-800">
@@ -330,7 +318,6 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* Price Editing Mode (Show only when isEditing) */}
                     {isEditing && (
                       <div className="flex gap-2 pt-2 border-t border-slate-100">
                         <div className="flex-1">
@@ -443,7 +430,97 @@ export default function App() {
         </div>
       </div>
 
-      {/* Print View - Styled specifically in index.css */}
+      {/* Digital Bill Preview Overlay for Screenshots */}
+      {showBillOverlay && (
+        <div className="bill-overlay print-hidden">
+          <div className="w-full max-w-md flex flex-col gap-4 mb-6">
+            <div className="flex items-center justify-between bg-slate-800 p-4 rounded-xl text-white">
+              <div className="flex-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Scale: {billScale}%</label>
+                <input 
+                  type="range" 
+                  min="50" 
+                  max="150" 
+                  step="5"
+                  value={billScale} 
+                  onChange={(e) => setBillScale(parseInt(e.target.value))}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                />
+              </div>
+              <button 
+                onClick={() => setShowBillOverlay(false)}
+                className="ml-4 bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+              >
+                CLOSE
+              </button>
+            </div>
+            <p className="text-white/50 text-[10px] text-center uppercase font-bold">Adjust scale then take screenshot</p>
+          </div>
+
+          <div 
+            className="bill-container p-6" 
+            style={{ transform: `scale(${billScale / 100})` }}
+          >
+            <div className="text-center mb-6 border-b-2 border-slate-900 pb-4">
+              <h1 className="text-2xl font-black uppercase tracking-tight">CASH MEMO</h1>
+              <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">Retail Billing System</p>
+            </div>
+            
+            <div className="flex justify-between text-[10px] font-bold uppercase mb-4">
+              <span>Date: {new Date().toLocaleDateString()}</span>
+              <span>Time: {new Date().toLocaleTimeString()}</span>
+            </div>
+
+            <table className="w-full mb-6 border-collapse">
+              <thead>
+                <tr className="border-y border-slate-900 text-[9px] text-left uppercase">
+                  <th className="py-2">Item Name</th>
+                  <th className="py-2 text-center">Price</th>
+                  <th className="py-2 text-center whitespace-nowrap">B OR L</th>
+                  <th className="py-2 text-center">Quantity</th>
+                  <th className="py-2 text-right">Line Amount</th>
+                </tr>
+              </thead>
+              <tbody className="text-xs">
+                {billItems.map(item => (
+                  <tr key={item.id} className="border-b border-slate-100 italic">
+                    <td className="py-2 font-bold uppercase leading-none">{item.name}</td>
+                    <td className="py-2 text-center">₹{item.price.toFixed(0)}</td>
+                    <td className="py-2 text-center font-black uppercase">{item.typeLabel.substring(0,1)}</td>
+                    <td className="py-2 text-center font-bold">{item.qty}</td>
+                    <td className="py-2 text-right font-black">₹{item.total.toFixed(0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="flex flex-col items-end border-t-2 border-slate-900 pt-4 gap-1">
+              <div className="flex justify-between w-full max-w-[170px] text-xs font-bold">
+                <span>SUBTOTAL:</span>
+                <span>₹{grandTotal.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between w-full max-w-[170px] text-xl font-black border-t border-slate-200 mt-1 pt-1">
+                <span>FINAL AMOUNT:</span>
+                <span>₹{grandTotal.toFixed(0)}</span>
+              </div>
+            </div>
+
+            <footer className="mt-10 pt-4 border-t border-dashed border-slate-300 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-widest">*** Thank you for your visit ***</p>
+              <p className="text-[8px] text-slate-400 mt-1 italic">Generated via BillGen Pro PWA</p>
+            </footer>
+          </div>
+          
+          <button 
+            onClick={() => window.print()}
+            className="mt-8 bg-white/10 text-white/50 px-4 py-2 rounded-lg text-[10px] font-bold uppercase border border-white/10"
+          >
+            Try System Print
+          </button>
+        </div>
+      )}
+
+      {/* Legacy Print View (Still here for window.print support) */}
       <div id="print-area">
         <div className="p-4 bg-white">
           <div className="text-center mb-6 border-b-2 border-slate-900 pb-4">
@@ -499,4 +576,3 @@ export default function App() {
     </div>
   );
 }
-
