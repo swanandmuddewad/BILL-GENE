@@ -4,9 +4,10 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { getItems, saveItems, Item } from './utils/storage';
 import { toPng } from 'html-to-image';
+import { Reorder } from 'motion/react';
 
 const INITIAL_ITEMS: Omit<Item, 'id'>[] = [
   { name: "GM", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
@@ -299,7 +300,15 @@ export default function App() {
               {isEditing && <div className="p-3 w-10"></div>}
             </div>
 
-            <div className="divide-y divide-slate-100">
+            <Reorder.Group 
+              axis="y" 
+              values={items} 
+              onReorder={(newOrder) => {
+                setItems(newOrder);
+                saveItems(newOrder);
+              }}
+              className="divide-y divide-slate-100"
+            >
               {items.map((item) => {
                 const currentQty = quantities[item.id]?.qty || '';
                 const currentType = quantities[item.id]?.type || item.defaultType;
@@ -307,8 +316,18 @@ export default function App() {
                 const hasValue = (parseFloat(currentQty) || 0) > 0;
                 
                 return (
-                  <div key={item.id} className={`p-3 space-y-2 ${hasValue ? "bg-blue-50/50" : ""}`}>
+                  <Reorder.Item 
+                    key={item.id} 
+                    value={item}
+                    dragListener={isEditing}
+                    className={`p-3 space-y-2 ${hasValue ? "bg-blue-50/50" : "bg-white"} ${isEditing ? "cursor-grab active:cursor-grabbing" : ""}`}
+                  >
                     <div className="flex items-center gap-3">
+                      {isEditing && (
+                        <div className="flex-shrink-0 text-slate-300">
+                          <GripVertical size={20} />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="font-black text-slate-900 text-sm sm:text-base leading-tight uppercase">
                           {item.name}
@@ -435,10 +454,10 @@ export default function App() {
                         </div>
                       </div>
                     )}
-                  </div>
+                  </Reorder.Item>
                 );
               })}
-            </div>
+            </Reorder.Group>
           </div>
           
           {isEditing && (
