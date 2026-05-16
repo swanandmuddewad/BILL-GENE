@@ -22,11 +22,47 @@ export const initDB = async (): Promise<IDBPDatabase> => {
 };
 
 export const saveItems = async (items: Item[]) => {
-  const db = await initDB();
-  await db.put(STORE_NAME, items, 'items');
+  try {
+    const db = await initDB();
+    await db.put(STORE_NAME, items, 'items');
+  } catch (err) {
+    console.error("IDB save error:", err);
+  }
+  // Fallback / sync cache
+  try {
+    localStorage.setItem('cached_items', JSON.stringify(items));
+  } catch (e) {}
 };
 
 export const getItems = async (): Promise<Item[]> => {
-  const db = await initDB();
-  return (await db.get(STORE_NAME, 'items')) || [];
+  let items: Item[] | null = null;
+  try {
+    const db = await initDB();
+    items = await db.get(STORE_NAME, 'items');
+  } catch (err) {
+    console.error("IDB get error:", err);
+  }
+  
+  if (!items || items.length === 0) {
+    try {
+      const cached = localStorage.getItem('cached_items');
+      if (cached) items = JSON.parse(cached);
+    } catch (e) {}
+  }
+  
+  return items || [];
+};
+
+export const saveQuantities = (quantities: any) => {
+  try {
+    localStorage.setItem('cached_quantities', JSON.stringify(quantities));
+  } catch(e) {}
+};
+
+export const getQuantities = () => {
+  try {
+    const cached = localStorage.getItem('cached_quantities');
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+  return null;
 };

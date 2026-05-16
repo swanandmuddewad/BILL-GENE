@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
-import { getItems, saveItems, Item } from './utils/storage';
+import { getItems, saveItems, Item, saveQuantities, getQuantities } from './utils/storage';
 import { toPng } from 'html-to-image';
 import { Reorder, useDragControls } from 'motion/react';
 
@@ -221,11 +221,20 @@ export default function App() {
   
   const billRef = useRef<HTMLDivElement>(null);
 
+  // Sync quantities to storage
+  useEffect(() => {
+    if (Object.keys(quantities).length > 0) {
+      saveQuantities(quantities);
+    }
+  }, [quantities]);
+
   // Initialize Data
   useEffect(() => {
     const loadData = async () => {
       try {
         const stored = await getItems();
+        const cachedQtys = getQuantities() || {};
+
         if (stored && stored.length > 0) {
           const migrated = stored.map(item => ({
             ...item,
@@ -237,7 +246,7 @@ export default function App() {
           
           const initialQtys: { [key: string]: { qty: string, type: 'box' | 'loose' } } = {};
           migrated.forEach(item => {
-            initialQtys[item.id] = { qty: '', type: item.defaultType };
+            initialQtys[item.id] = cachedQtys[item.id] || { qty: '', type: item.defaultType };
           });
           setQuantities(initialQtys);
         } else {
@@ -249,7 +258,7 @@ export default function App() {
           
           const initialQtys: { [key: string]: { qty: string, type: 'box' | 'loose' } } = {};
           defaultItems.forEach(item => {
-            initialQtys[item.id] = { qty: '', type: item.defaultType };
+            initialQtys[item.id] = cachedQtys[item.id] || { qty: '', type: item.defaultType };
           });
           setQuantities(initialQtys);
           
