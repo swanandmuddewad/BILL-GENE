@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@layer base {
+  /* Prevent scrolling content under status bar on iOS */
+  body {
+    @apply antialiased text-slate-900 bg-slate-50 overflow-x-hidden;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Hide print view from screen, only for printing */
+#print-area {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
+  /* Force background colors */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Completely hide everything marked as print-hidden */
+  .print-hidden {
+    display: none !important;
+  }
+
+  /* Ensure the print area is visible and takes up the whole page */
+  #print-area {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    background: white !important;
+  }
+  
+  body, html {
+    background: white !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+

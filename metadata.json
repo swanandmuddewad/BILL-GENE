@@ -1,0 +1,8 @@
+{
+  "name": "BillGen Pro PWA",
+  "description": "A high-performance, mobile-first Bill Generator PWA with offline support, persistent storage, and thermal print optimization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
