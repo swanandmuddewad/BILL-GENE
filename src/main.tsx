@@ -2,7 +2,6 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { AuthProvider } from './components/AuthProvider.tsx';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -14,8 +13,6 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <App />
   </StrictMode>,
 );
