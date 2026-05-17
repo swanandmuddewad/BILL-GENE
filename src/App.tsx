@@ -430,12 +430,24 @@ export default function App() {
         pixelRatio: 1.5 // Reduced to prevent mobile rendering crashes
       });
       
+      const triggerDownload = () => {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+
       // Try Web Share API with a Blob (handles sharing to social media well)
       try {
         const blob = await (await fetch(dataUrl)).blob();
         if (navigator.share && navigator.canShare) {
           const file = new File([blob], filename, { type: 'image/jpeg' });
           if (navigator.canShare({ files: [file] })) {
+            // Initiate standard download first to ensure it's saved locally
+            triggerDownload();
+            
             await navigator.share({
               files: [file],
               title: billName || 'Bill details',
@@ -454,12 +466,7 @@ export default function App() {
 
       // Fallback for desktop, WebView, or non-sharing browsers
       // Using dataUrl directly helps Android WebView infer the correct MIME type
-      const link = document.createElement('a');
-      link.download = filename;
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      triggerDownload();
       setShowNamePrompt(false);
     } catch (err: any) {
       console.error('oops, something went wrong!', err);
