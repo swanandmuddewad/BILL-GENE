@@ -517,8 +517,8 @@ export default function App() {
       <header className="bg-slate-900 text-white p-4 sticky top-0 z-30 shadow-lg flex justify-between items-center print-hidden">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <ShoppingCart size={24} className="text-blue-400" />
-          <span className="hidden sm:inline">Bill Generator</span>
-          <span className="sm:hidden text-lg">Bill Gen</span>
+          <span className="hidden sm:inline">Swabill</span>
+          <span className="sm:hidden text-lg">Swabill</span>
         </h1>
         <div className="flex gap-2">
           {deferredPrompt && (

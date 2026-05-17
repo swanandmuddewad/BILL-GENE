@@ -14,9 +14,9 @@ export default defineConfig(({mode}) => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
-          name: 'Bill Generator',
-          short_name: 'Bill Gen',
-          description: 'Quick bill calculator for shops with offline support',
+          name: 'Swabill',
+          short_name: 'Swabill',
+          description: 'Quick bill calculator',
           theme_color: '#1e293b',
           background_color: '#ffffff',
           display: 'standalone',

@@ -1,5 +1,5 @@
 {
-  "name": "BillGen Pro PWA",
+  "name": "Swabill",
   "description": "A high-performance, mobile-first Bill Generator PWA with offline support, persistent storage, and thermal print optimization.",
   "requestFramePermissions": [],
   "majorCapabilities": [
