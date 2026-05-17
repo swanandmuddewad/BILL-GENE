@@ -207,30 +207,30 @@ function SortableItemRow({
 }
 
 const INITIAL_ITEMS: Omit<Item, 'id'>[] = [
-  { name: "GM", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
-  { name: "TANGO", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
-  { name: "APPLE", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
-  { name: "SOAP", boxPrice: 3800, loosePrice: 0, defaultType: "box" },
-  { name: "KF BOTTLE", boxPrice: 0, loosePrice: 0, defaultType: "box" },
-  { name: "KF CAN", boxPrice: 0, loosePrice: 0, defaultType: "box" },
-  { name: "LP BOTTLE", boxPrice: 0, loosePrice: 0, defaultType: "box" },
-  { name: "LP CAN", boxPrice: 0, loosePrice: 0, defaultType: "box" },
+  { name: "GM", boxPrice: 3800, loosePrice: 38, defaultType: "box" },
+  { name: "TANGO", boxPrice: 3800, loosePrice: 38, defaultType: "box" },
+  { name: "APPLE", boxPrice: 3800, loosePrice: 38, defaultType: "box" },
+  { name: "SOAP", boxPrice: 3800, loosePrice: 38, defaultType: "box" },
+  { name: "KF BOTTLE", boxPrice: 2340, loosePrice: 195, defaultType: "box" },
+  { name: "KF CAN", boxPrice: 3528, loosePrice: 147, defaultType: "box" },
+  { name: "LP BOTTLE", boxPrice: 2040, loosePrice: 170, defaultType: "box" },
+  { name: "LP CAN", boxPrice: 3168, loosePrice: 132, defaultType: "box" },
   { name: "TB BOTTLE", boxPrice: 0, loosePrice: 0, defaultType: "box" },
   { name: "TB CAN", boxPrice: 0, loosePrice: 0, defaultType: "box" },
-  { name: "MD NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "MD 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "IB NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "IB 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "RS NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "RS 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "RC NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "RC 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "OM NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
+  { name: "MD NIP", boxPrice: 0, loosePrice: 205, defaultType: "loose" },
+  { name: "MD 90", boxPrice: 0, loosePrice: 117, defaultType: "loose" },
+  { name: "IB NIP", boxPrice: 0, loosePrice: 215, defaultType: "loose" },
+  { name: "IB 90", boxPrice: 0, loosePrice: 117, defaultType: "loose" },
+  { name: "RS NIP", boxPrice: 0, loosePrice: 245, defaultType: "loose" },
+  { name: "RS 90", boxPrice: 0, loosePrice: 137, defaultType: "loose" },
+  { name: "RC 90", boxPrice: 0, loosePrice: 132, defaultType: "loose" },
+  { name: "OM NIP", boxPrice: 0, loosePrice: 210, defaultType: "loose" },
   { name: "OM 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
+  { name: "RC NIP", boxPrice: 0, loosePrice: 245, defaultType: "loose" },
+  { name: "MS NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
+  { name: "MS 90", boxPrice: 0, loosePrice: 77, defaultType: "loose" },
   { name: "IC NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
   { name: "IC 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "MS NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
-  { name: "MS 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
   { name: "DSP NIP", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
   { name: "DSP 90", boxPrice: 0, loosePrice: 0, defaultType: "loose" },
 ];
@@ -270,12 +270,23 @@ export default function App() {
         const cachedQtys = getQuantities() || {};
 
         if (stored && stored.length > 0) {
-          const migrated = stored.map(item => ({
-            ...item,
-            boxPrice: (item as any).boxPrice ?? (item as any).price ?? 0,
-            loosePrice: (item as any).loosePrice ?? 0,
-            defaultType: (item as any).defaultType ?? 'box'
-          }));
+          const migrated = stored.map(item => {
+            const initialMatch = INITIAL_ITEMS.find(i => i.name === item.name);
+            let boxPrice = (item as any).boxPrice ?? (item as any).price ?? 0;
+            let loosePrice = (item as any).loosePrice ?? 0;
+            
+            if (initialMatch) {
+              if (boxPrice === 0 && initialMatch.boxPrice > 0) boxPrice = initialMatch.boxPrice;
+              if (loosePrice === 0 && initialMatch.loosePrice > 0) loosePrice = initialMatch.loosePrice;
+            }
+
+            return {
+              ...item,
+              boxPrice,
+              loosePrice,
+              defaultType: (item as any).defaultType ?? 'box'
+            };
+          });
           setItems(migrated);
           
           const initialQtys: { [key: string]: { qty: string, type: 'box' | 'loose' } } = {};
@@ -283,6 +294,7 @@ export default function App() {
             initialQtys[item.id] = cachedQtys[item.id] || { qty: '', type: item.defaultType };
           });
           setQuantities(initialQtys);
+          saveItems(migrated);
         } else {
           const defaultItems = INITIAL_ITEMS.map(item => ({
             id: Math.random().toString(36).substring(2, 11),
