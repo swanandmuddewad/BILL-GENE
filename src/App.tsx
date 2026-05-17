@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Printer, Save, Smartphone, Package, ShoppingCart, Download, Image as ImageIcon, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { getItems, saveItems, Item, saveQuantities, getQuantities } from './utils/storage';
-import { toPng } from 'html-to-image';
+import { toJpeg } from 'html-to-image';
 import { Reorder, useDragControls } from 'motion/react';
 
 function SortableItemRow({ 
@@ -19,13 +19,16 @@ function SortableItemRow({
   removeItem, 
   moveItem, 
   handleTypeToggle, 
-  handleQtyChange, 
+  handleQtyChange,
+  handleTempPriceChange, 
   updatePrice 
 }: any) {
   const controls = useDragControls();
   const currentQty = quantities[item.id]?.qty || '';
   const currentType = quantities[item.id]?.type || item.defaultType;
-  const currentPrice = currentType === 'box' ? item.boxPrice : item.loosePrice;
+  const currentTempPrice = quantities[item.id]?.tempPrice;
+  const basePrice = currentType === 'box' ? item.boxPrice : item.loosePrice;
+  const currentPrice = (currentTempPrice !== undefined && currentTempPrice !== '') ? parseFloat(currentTempPrice) : basePrice;
   const hasValue = (parseFloat(currentQty) || 0) > 0;
   
   return (
@@ -48,13 +51,42 @@ function SortableItemRow({
           <div className="font-black text-slate-900 text-sm sm:text-base leading-tight uppercase">
             {item.name}
           </div>
-          <div className="flex gap-3 mt-0.5">
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${currentType === 'box' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
-              BOX: ₹{item.boxPrice.toFixed(0)}
-            </span>
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${currentType === 'loose' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
-              LOOSE: ₹{item.loosePrice.toFixed(0)}
-            </span>
+          <div className="flex flex-wrap gap-1 mt-0.5 items-center">
+            {currentType === 'box' && !isEditing ? (
+              <div className="flex items-center bg-blue-100 rounded px-1.5 py-0.5 max-w-[100px] border border-blue-200 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100 transition-all">
+                <span className="text-[10px] font-bold text-blue-700 whitespace-nowrap">BOX: ₹</span>
+                <input 
+                  type="number"
+                  inputMode="decimal"
+                  value={currentTempPrice !== undefined ? currentTempPrice : ''}
+                  onChange={(e) => handleTempPriceChange(item.id, e.target.value)}
+                  className="w-10 bg-transparent text-[10px] font-bold text-blue-700 outline-none px-0.5 placeholder-blue-400/70"
+                  placeholder={item.boxPrice.toString()}
+                />
+              </div>
+            ) : (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${currentType === 'box' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}>
+                BOX: ₹{item.boxPrice.toFixed(0)}
+              </span>
+            )}
+
+            {currentType === 'loose' && !isEditing ? (
+              <div className="flex items-center bg-green-100 rounded px-1.5 py-0.5 max-w-[100px] border border-green-200 focus-within:border-green-400 focus-within:ring-1 focus-within:ring-green-100 transition-all">
+                <span className="text-[10px] font-bold text-green-700 whitespace-nowrap">LOOSE: ₹</span>
+                <input 
+                  type="number"
+                  inputMode="decimal"
+                  value={currentTempPrice !== undefined ? currentTempPrice : ''}
+                  onChange={(e) => handleTempPriceChange(item.id, e.target.value)}
+                  className="w-10 bg-transparent text-[10px] font-bold text-green-700 outline-none px-0.5 placeholder-green-400/70"
+                  placeholder={item.loosePrice.toString()}
+                />
+              </div>
+            ) : (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${currentType === 'loose' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                LOOSE: ₹{item.loosePrice.toFixed(0)}
+              </span>
+            )}
           </div>
         </div>
 
@@ -205,9 +237,11 @@ const INITIAL_ITEMS: Omit<Item, 'id'>[] = [
 
 export default function App() {
   const [items, setItems] = useState<Item[]>([]);
-  const [quantities, setQuantities] = useState<{ [key: string]: { qty: string, type: 'box' | 'loose' } }>({});
+  const [quantities, setQuantities] = useState<{ [key: string]: { qty: string, type: 'box' | 'loose', tempPrice?: string } }>({});
   const [isEditing, setIsEditing] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [billName, setBillName] = useState('bill');
 
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -312,7 +346,14 @@ export default function App() {
   const handleTypeToggle = (id: string) => {
     setQuantities(prev => ({
       ...prev,
-      [id]: { ...prev[id], type: prev[id].type === 'box' ? 'loose' : 'box' }
+      [id]: { ...prev[id], type: prev[id].type === 'box' ? 'loose' : 'box', tempPrice: '' }
+    }));
+  };
+
+  const handleTempPriceChange = (id: string, val: string) => {
+    setQuantities(prev => ({ 
+      ...prev, 
+      [id]: { ...prev[id], tempPrice: val } 
     }));
   };
 
@@ -321,7 +362,9 @@ export default function App() {
       .filter(item => (parseFloat(quantities[item.id]?.qty) || 0) > 0)
       .map(item => {
         const type = quantities[item.id].type;
-        const price = type === 'box' ? item.boxPrice : item.loosePrice;
+        const tempPrice = quantities[item.id].tempPrice;
+        const basePrice = type === 'box' ? item.boxPrice : item.loosePrice;
+        const price = (tempPrice !== undefined && tempPrice !== '') ? parseFloat(tempPrice) : basePrice;
         const qty = parseFloat(quantities[item.id].qty);
         return {
           ...item,
@@ -366,56 +409,62 @@ export default function App() {
     setShowBillOverlay(true);
   };
 
-  const handleDownloadImage = async () => {
+  const handleDownloadClick = () => {
+    setBillName('bill');
+    setShowNamePrompt(true);
+  };
+
+  const executeDownloadImage = async () => {
     if (!billRef.current) return;
+    
+    const safeName = billName.trim().replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'bill';
+    const filename = `${safeName}-${new Date().getTime()}.jpg`;
     
     setIsDownloading(true);
     try {
-      // Create image with optimized settings to prevent mobile Out-of-Memory crashes
-      const dataUrl = await toPng(billRef.current, { 
+      // Create image with optimized settings (JPEG, white bg) to prevent mobile issues
+      const dataUrl = await toJpeg(billRef.current, { 
         cacheBust: false,
-        quality: 0.9,
-        pixelRatio: 1.5 // Reduced from 2 to prevent mobile rendering crashes
+        quality: 0.95,
+        backgroundColor: '#ffffff',
+        pixelRatio: 1.5 // Reduced to prevent mobile rendering crashes
       });
       
-      const filename = `bill-${new Date().getTime()}.png`;
-      const blob = await (await fetch(dataUrl)).blob();
-
-      // For devices that support the Web Share API (most modern mobile phones)
-      if (navigator.share && navigator.canShare) {
-        const file = new File([blob], filename, { type: 'image/png' });
-        if (navigator.canShare({ files: [file] })) {
-          try {
+      // Try Web Share API with a Blob (handles sharing to social media well)
+      try {
+        const blob = await (await fetch(dataUrl)).blob();
+        if (navigator.share && navigator.canShare) {
+          const file = new File([blob], filename, { type: 'image/jpeg' });
+          if (navigator.canShare({ files: [file] })) {
             await navigator.share({
               files: [file],
-              title: 'Bill details',
+              title: billName || 'Bill details',
             });
+            setShowNamePrompt(false);
             return; // Success with native share
-          } catch (shareErr: any) {
-            // User cancelled share, or it failed. Fallback to normal download
-            if (shareErr.name !== 'AbortError') {
-              console.warn('Share failed, falling back to download:', shareErr);
-            } else {
-              return; // User intentionally cancelled share
-            }
           }
         }
+      } catch (shareErr: any) {
+        if (shareErr.name === 'AbortError') {
+          setShowNamePrompt(false);
+          return; // User intentionally cancelled share
+        }
+        console.warn('Share failed, falling back to download:', shareErr);
       }
 
-      // Fallback for desktop or non-sharing browsers
-      const url = URL.createObjectURL(blob);
+      // Fallback for desktop, WebView, or non-sharing browsers
+      // Using dataUrl directly helps Android WebView infer the correct MIME type
       const link = document.createElement('a');
       link.download = filename;
-      link.href = url;
+      link.href = dataUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Cleanup
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      setShowNamePrompt(false);
     } catch (err: any) {
       console.error('oops, something went wrong!', err);
       alert('Failed to generate image: ' + (err.message || 'Unknown error') + '. Please try taking a screenshot instead.');
+      setShowNamePrompt(false);
     } finally {
       setIsDownloading(false);
     }
@@ -427,9 +476,9 @@ export default function App() {
       return;
     }
     
-    const resetQtys: { [key: string]: { qty: string, type: 'box' | 'loose' } } = {};
+    const resetQtys: { [key: string]: { qty: string, type: 'box' | 'loose', tempPrice?: string } } = {};
     items.forEach(item => {
-      resetQtys[item.id] = { qty: '', type: item.defaultType };
+      resetQtys[item.id] = { qty: '', type: item.defaultType, tempPrice: '' };
     });
     setQuantities(resetQtys);
     setIsConfirmingClear(false);
@@ -527,6 +576,7 @@ export default function App() {
                   moveItem={moveItem}
                   handleTypeToggle={handleTypeToggle}
                   handleQtyChange={handleQtyChange}
+                  handleTempPriceChange={handleTempPriceChange}
                   updatePrice={updatePrice}
                 />
               ))}
@@ -617,6 +667,41 @@ export default function App() {
         </div>
       )}
 
+      {/* End Footer Summary */}
+
+      {showNamePrompt && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col gap-4">
+            <h3 className="font-black text-xl text-slate-800">Save Photo</h3>
+            <p className="text-slate-500 text-sm">Enter a name for the image file.</p>
+            <input
+              type="text"
+              value={billName}
+              onChange={e => setBillName(e.target.value)}
+              className="border border-slate-200 rounded-xl p-3 w-full font-bold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+              placeholder="e.g. bill"
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end mt-2">
+              <button
+                onClick={() => setShowNamePrompt(false)}
+                className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg transition-colors"
+                disabled={isDownloading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDownloadImage}
+                disabled={isDownloading}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                {isDownloading ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Digital Bill Preview Overlay for Screenshots */}
       {showBillOverlay && (
         <div className="bill-overlay print-hidden">
@@ -636,7 +721,7 @@ export default function App() {
               </div>
               <div className="flex gap-2 ml-4">
                 <button 
-                  onClick={handleDownloadImage}
+                  onClick={handleDownloadClick}
                   disabled={isDownloading}
                   className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
