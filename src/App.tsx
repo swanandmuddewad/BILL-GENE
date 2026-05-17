@@ -670,7 +670,7 @@ export default function App() {
       {/* End Footer Summary */}
 
       {showNamePrompt && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl flex flex-col gap-4">
             <h3 className="font-black text-xl text-slate-800">Save Photo</h3>
             <p className="text-slate-500 text-sm">Enter a name for the image file.</p>
